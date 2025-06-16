@@ -12,7 +12,7 @@ import random
 st.set_page_config(page_title="AI Pixel Art to Realistic Image Converter", layout="wide")
 
 # App title
-st.title("🖼 AI Pixel Art to Realistic Image Converter")
+st.title("AI Pixel Art to Realistic Image Converter")
 st.markdown("Transform *pixel art* into *photorealistic images* using advanced AI-inspired techniques!")
 
 # Image uploader
