@@ -1,648 +1,545 @@
 import streamlit as st
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageEnhance
-import io
-import base64
-import math
+from PIL import Image, ImageFilter, ImageEnhance, ImageDraw
+from io import BytesIO
+import cv2
+from sklearn.cluster import KMeans
+import scipy.ndimage as ndi
+from skimage import morphology, filters, restoration, measure
 import random
-from typing import List, Tuple, Dict
-import time
+import math
 
 # Set page config
-st.set_page_config(
-    page_title="🧶 Realistic Carpet Pattern Generator",
-    page_icon="🧶",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Professional Carpet Design Visualizer", layout="wide")
 
-class StreamlitCarpetGenerator:
-    def __init__(self):
-        self.color_presets = {
-            'Classic Gray': ['#2c3e50', '#ecf0f1', '#34495e', '#95a5a6'],
-            'Warm Earth': ['#8b4513', '#deb887', '#a0522d', '#f4a460'],
-            'Cool Blue': ['#1e3a8a', '#e0f2fe', '#3b82f6', '#93c5fd'],
-            'Luxury Gold': ['#8b4513', '#ffd700', '#a0522d', '#ffed4e'],
-            'Persian Red': ['#8b0000', '#f5deb3', '#a0522d', '#cd853f'],
-            'Moroccan Teal': ['#008080', '#f0ffff', '#4682b4', '#20b2aa'],
-            'Desert Sand': ['#c19a6b', '#f5f5dc', '#daa520', '#cd853f'],
-            'Forest Green': ['#228b22', '#f0fff0', '#32cd32', '#90ee90'],
-            'Royal Purple': ['#4b0082', '#e6e6fa', '#9370db', '#dda0dd'],
-            'Sunset Orange': ['#ff4500', '#fff8dc', '#ffa500', '#ffb347']
-        }
-        
-        self.pattern_descriptions = {
-            'Diamond': 'Classic geometric diamond pattern - perfect for modern and traditional spaces',
-            'Chevron': 'Zigzag chevron pattern - adds dynamic energy to any room',
-            'Persian': 'Traditional Persian mandala style - elegant and sophisticated',
-            'Moroccan': 'Intricate Moroccan tile pattern - exotic and luxurious',
-            'Tribal': 'Bold tribal/Aztec pattern - perfect for bohemian interiors',
-            'Hexagonal': 'Modern hexagonal honeycomb pattern - contemporary geometric design'
-        }
-        
-        self.material_info = {
-            'Wool': 'Natural, durable, soft texture with excellent stain resistance',
-            'Cotton': 'Smooth, breathable, easy to clean, perfect for high-traffic areas',
-            'Jute': 'Eco-friendly, rustic texture, natural and sustainable',
-            'Silk': 'Luxurious, elegant sheen, premium quality with fine details',
-            'Synthetic': 'Affordable, consistent texture, stain-resistant and durable'
-        }
+# App title
+st.title("🏠 Professional Carpet Design Visualizer")
+st.markdown("Transform pixelated carpet designs into photorealistic textile visualizations for professional carpet manufacturing!")
 
-    @st.cache_data
-    def hex_to_rgb(_self, hex_color: str) -> Tuple[int, int, int]:
-        """Convert hex color to RGB tuple"""
-        hex_color = hex_color.lstrip('#')
-        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+# Image uploader
+uploaded_file = st.file_uploader("Upload your carpet design", type=["jpg", "jpeg", "png"])
 
-    def create_base_canvas(self, width: int, height: int, base_color: str) -> Image.Image:
-        """Create base canvas with background color"""
-        rgb_color = self.hex_to_rgb(base_color)
-        img = Image.new('RGB', (width, height), rgb_color)
-        return img
-
-    def generate_diamond_pattern(self, width: int, height: int, scale: int, colors: List[str]) -> Image.Image:
-        """Generate diamond/rhombus geometric pattern"""
-        img = self.create_base_canvas(width, height, colors[0])
-        draw = ImageDraw.Draw(img)
+if uploaded_file is not None:
+    try:
+        # Load image using PIL
+        pixel_image = Image.open(uploaded_file)
         
-        rows = height // scale + 2
-        cols = width // scale + 2
+        # Convert to RGB if needed
+        if pixel_image.mode in ('RGBA', 'LA', 'P'):
+            pixel_image = pixel_image.convert('RGB')
         
-        for row in range(rows):
-            for col in range(cols):
-                x = col * scale - scale // 2
-                y = row * scale - scale // 2
-                
-                diamond_points = [
-                    (x + scale // 2, y),
-                    (x + scale, y + scale // 2),
-                    (x + scale // 2, y + scale),
-                    (x, y + scale // 2)
-                ]
-                
-                color_idx = (row + col) % len(colors)
-                fill_color = self.hex_to_rgb(colors[color_idx])
-                
-                draw.polygon(diamond_points, fill=fill_color)
-                
-                if len(colors) > 2:
-                    border_color = self.hex_to_rgb(colors[(color_idx + 2) % len(colors)])
-                    draw.polygon(diamond_points, outline=border_color, width=1)
+        # Show original pixel art
+        col1, col2 = st.columns(2)
         
-        return img
-
-    def generate_chevron_pattern(self, width: int, height: int, scale: int, colors: List[str]) -> Image.Image:
-        """Generate chevron zigzag pattern"""
-        img = self.create_base_canvas(width, height, colors[0])
-        draw = ImageDraw.Draw(img)
+        with col1:
+            st.subheader("Original Design Pattern")
+            st.image(pixel_image, caption=f"Size: {pixel_image.width}×{pixel_image.height}", use_container_width=True)
         
-        stripe_height = scale
-        rows = height // stripe_height + 2
+        # Get original dimensions
+        orig_width, orig_height = pixel_image.size
         
-        for i in range(rows):
-            y = i * stripe_height - stripe_height // 2
-            color_idx = i % len(colors)
-            fill_color = self.hex_to_rgb(colors[color_idx])
+        # Enhancement parameters
+        st.subheader("🎛 Professional Carpet Visualization Controls")
+        
+        # Carpet-Specific Settings
+        with st.expander("🧶 Carpet Material & Construction", expanded=True):
+            col_mat1, col_mat2 = st.columns(2)
             
-            chevron_points = [
-                (0, y),
-                (width // 2, y + stripe_height // 2),
-                (width, y),
-                (width, y + stripe_height),
-                (width // 2, y + stripe_height // 2),
-                (0, y + stripe_height)
-            ]
+            with col_mat1:
+                carpet_type = st.selectbox(
+                    "Carpet Construction Type",
+                    ["Loop Pile (Berber)", "Cut Pile (Plush)", "Cut & Loop", "Frieze (Twisted)", "Shag", "Flatweave", "Hand-Knotted"],
+                    index=0,
+                    help="Different carpet construction methods create different visual textures"
+                )
+                
+                fiber_type = st.selectbox(
+                    "Fiber Material",
+                    ["Wool", "Nylon", "Polyester", "Polypropylene", "Cotton", "Silk", "Jute"],
+                    help="Fiber material affects sheen, texture, and appearance"
+                )
+                
+                pile_height = st.slider(
+                    "Pile Height (mm)",
+                    min_value=2,
+                    max_value=25,
+                    value=8,
+                    step=1,
+                    help="Height of carpet fibers - affects shadow depth and texture"
+                )
             
-            draw.polygon(chevron_points, fill=fill_color)
+            with col_mat2:
+                fiber_density = st.slider(
+                    "Fiber Density",
+                    min_value=0.5,
+                    max_value=3.0,
+                    value=1.5,
+                    step=0.1,
+                    help="How tightly packed the fibers are"
+                )
+                
+                yarn_twist = st.slider(
+                    "Yarn Twist Level",
+                    min_value=0.1,
+                    max_value=2.0,
+                    value=1.0,
+                    step=0.1,
+                    help="Amount of twist in carpet yarn - affects light reflection"
+                )
+                
+                color_variation = st.slider(
+                    "Natural Color Variation",
+                    min_value=0.0,
+                    max_value=2.0,
+                    value=0.8,
+                    step=0.1,
+                    help="Natural variation in fiber color"
+                )
         
-        return img
-
-    def generate_persian_pattern(self, width: int, height: int, scale: int, colors: List[str]) -> Image.Image:
-        """Generate Persian-style mandala pattern"""
-        img = self.create_base_canvas(width, height, colors[0])
-        draw = ImageDraw.Draw(img)
+        # Output Size Configuration
+        with st.expander("📐 Output Resolution", expanded=True):
+            upscale_factor = st.selectbox(
+                "Resolution Multiplier",
+                [4, 6, 8, 10, 12, 16, 20],
+                index=2,  # Default to 8x
+                help="Higher values create more detailed textures"
+            )
+            target_width = orig_width * upscale_factor
+            target_height = orig_height * upscale_factor
+            st.info(f"Output Resolution: {target_width} × {target_height} pixels")
         
-        center_x, center_y = width // 2, height // 2
-        
-        for radius in range(scale, min(width, height) // 2, scale):
-            petals = max(6, radius // scale * 4)
+        # Advanced Realism Controls
+        with st.expander("🎯 Advanced Realism Controls", expanded=True):
+            col_real1, col_real2 = st.columns(2)
             
-            for i in range(petals):
-                angle = (i / petals) * 2 * math.pi
-                x = center_x + math.cos(angle) * radius
-                y = center_y + math.sin(angle) * radius
+            with col_real1:
+                st.markdown("💡 *Lighting & Shadows:*")
+                lighting_angle = st.slider("Lighting Angle (degrees)", 0, 90, 45, 5)
+                shadow_depth = st.slider("Shadow Intensity", 0.0, 2.0, 1.2, 0.1)
+                highlight_strength = st.slider("Fiber Highlights", 0.0, 2.0, 1.0, 0.1)
                 
-                color_idx = i % len(colors)
-                fill_color = self.hex_to_rgb(colors[color_idx])
-                
-                petal_size = scale // 3
-                bbox = [x - petal_size, y - petal_size, x + petal_size, y + petal_size]
-                draw.ellipse(bbox, fill=fill_color)
-        
-        return img
+            with col_real2:
+                st.markdown("🔬 *Fiber Physics:*")
+                fiber_irregularity = st.slider("Fiber Irregularity", 0.0, 2.0, 1.0, 0.1)
+                wear_pattern = st.slider("Natural Wear", 0.0, 1.0, 0.2, 0.1)
+                backing_visibility = st.slider("Backing Visibility", 0.0, 0.5, 0.1, 0.05)
 
-    def generate_moroccan_pattern(self, width: int, height: int, scale: int, colors: List[str]) -> Image.Image:
-        """Generate Moroccan tile pattern"""
-        img = self.create_base_canvas(width, height, colors[0])
-        draw = ImageDraw.Draw(img)
-        
-        for x in range(0, width, scale):
-            for y in range(0, height, scale):
-                center_x = x + scale // 2
-                center_y = y + scale // 2
+        def create_advanced_fiber_texture(carpet_type, fiber_type, size, pile_height, fiber_density, yarn_twist):
+            """Create highly realistic fiber texture based on carpet construction"""
+            h, w = size
+            
+            # Base fiber structure
+            fiber_texture = np.zeros((h, w, 3), dtype=np.float32)
+            
+            # Calculate fiber spacing based on density
+            fiber_spacing = max(1, int(4 / fiber_density))
+            
+            if carpet_type == "Loop Pile (Berber)":
+                # Create loop structure
+                for y in range(0, h, fiber_spacing):
+                    for x in range(0, w, fiber_spacing):
+                        # Create loop shape
+                        loop_size = max(2, int(pile_height / 3))
+                        
+                        # Draw loop using bezier-like curve
+                        for i in range(loop_size):
+                            for j in range(loop_size):
+                                if y + i < h and x + j < w:
+                                    # Create loop height variation
+                                    loop_height = np.sin((i / loop_size) * np.pi) * 0.3
+                                    fiber_texture[y + i, x + j] = [loop_height, loop_height, loop_height]
+                                    
+                                    # Add fiber twist effect
+                                    twist_effect = np.sin(j * yarn_twist * 0.5) * 0.1
+                                    fiber_texture[y + i, x + j] += twist_effect
+            
+            elif carpet_type == "Cut Pile (Plush)":
+                # Create cut fiber ends
+                for y in range(0, h, fiber_spacing):
+                    for x in range(0, w, fiber_spacing):
+                        # Random fiber height variation
+                        height_var = np.random.normal(1.0, 0.1)
+                        fiber_height = pile_height * height_var
+                        
+                        # Create individual fiber
+                        fiber_width = max(1, int(fiber_spacing * 0.8))
+                        for i in range(fiber_width):
+                            for j in range(fiber_width):
+                                if y + i < h and x + j < w:
+                                    # Fiber shadow based on height
+                                    shadow = (fiber_height / pile_height) * 0.2
+                                    fiber_texture[y + i, x + j] = [shadow, shadow, shadow]
+            
+            elif carpet_type == "Frieze (Twisted)":
+                # Create highly twisted fiber appearance
+                for y in range(0, h, fiber_spacing):
+                    for x in range(0, w, fiber_spacing):
+                        # Create spiral/twisted pattern
+                        center_x, center_y = x + fiber_spacing // 2, y + fiber_spacing // 2
+                        
+                        for i in range(fiber_spacing):
+                            for j in range(fiber_spacing):
+                                if y + i < h and x + j < w:
+                                    # Calculate twist pattern
+                                    dx, dy = j - fiber_spacing // 2, i - fiber_spacing // 2
+                                    angle = np.arctan2(dy, dx)
+                                    radius = np.sqrt(dx*2 + dy*2)
+                                    
+                                    # Twisted fiber effect
+                                    twist_intensity = np.sin(angle * yarn_twist * 3 + radius * 0.5) * 0.3
+                                    fiber_texture[y + i, x + j] = [twist_intensity, twist_intensity, twist_intensity]
+            
+            elif carpet_type == "Flatweave":
+                # Create woven pattern
+                warp_spacing = max(2, int(6 / fiber_density))
+                weft_spacing = max(2, int(6 / fiber_density))
                 
-                # Draw star pattern
-                star_points = []
-                outer_radius = scale // 3
-                inner_radius = scale // 6
-                points = 8
-                
-                for i in range(points * 2):
-                    angle = (i / (points * 2)) * 2 * math.pi
-                    radius = outer_radius if i % 2 == 0 else inner_radius
-                    px = center_x + math.cos(angle) * radius
-                    py = center_y + math.sin(angle) * radius
-                    star_points.append((px, py))
-                
-                color_idx = ((x // scale) + (y // scale)) % len(colors)
-                fill_color = self.hex_to_rgb(colors[color_idx])
-                
-                draw.polygon(star_points, fill=fill_color)
-                
-                # Add circular border
-                circle_radius = scale // 2.5
-                bbox = [center_x - circle_radius, center_y - circle_radius,
-                       center_x + circle_radius, center_y + circle_radius]
-                if len(colors) > 1:
-                    border_color = self.hex_to_rgb(colors[(color_idx + 1) % len(colors)])
-                    draw.ellipse(bbox, outline=border_color, width=2)
-        
-        return img
-
-    def generate_tribal_pattern(self, width: int, height: int, scale: int, colors: List[str]) -> Image.Image:
-        """Generate tribal/aztec pattern"""
-        img = self.create_base_canvas(width, height, colors[0])
-        draw = ImageDraw.Draw(img)
-        
-        random.seed(42)  # For consistent results
-        
-        for x in range(0, width, scale):
-            for y in range(0, height, scale):
-                color_idx = random.randint(0, len(colors) - 1)
-                fill_color = self.hex_to_rgb(colors[color_idx])
-                draw.rectangle([x, y, x + scale, y + scale], fill=fill_color)
-                
-                # Inner pattern
-                inner_size = scale // 2
-                inner_x = x + scale // 4
-                inner_y = y + scale // 4
-                
-                inner_color_idx = (color_idx + 2) % len(colors)
-                inner_color = self.hex_to_rgb(colors[inner_color_idx])
-                draw.rectangle([inner_x, inner_y, inner_x + inner_size, inner_y + inner_size], 
-                             fill=inner_color)
-                
-                # Add triangle details
-                triangle_points = [
-                    (inner_x + inner_size // 2, inner_y),
-                    (inner_x, inner_y + inner_size),
-                    (inner_x + inner_size, inner_y + inner_size)
-                ]
-                detail_color = self.hex_to_rgb(colors[(color_idx + 1) % len(colors)])
-                draw.polygon(triangle_points, fill=detail_color)
-        
-        return img
-
-    def generate_hexagonal_pattern(self, width: int, height: int, scale: int, colors: List[str]) -> Image.Image:
-        """Generate hexagonal honeycomb pattern"""
-        img = self.create_base_canvas(width, height, colors[0])
-        draw = ImageDraw.Draw(img)
-        
-        hex_size = scale // 2
-        hex_height = hex_size * math.sqrt(3)
-        
-        for row in range(-2, int(height / hex_height) + 3):
-            for col in range(-2, int(width / (hex_size * 1.5)) + 3):
-                x = col * hex_size * 1.5
-                y = row * hex_height + (col % 2) * hex_height / 2
-                
-                # Hexagon vertices
-                hex_points = []
-                for i in range(6):
-                    angle = i * math.pi / 3
-                    px = x + hex_size * math.cos(angle)
-                    py = y + hex_size * math.sin(angle)
-                    hex_points.append((px, py))
-                
-                color_idx = (row + col) % len(colors)
-                fill_color = self.hex_to_rgb(colors[color_idx])
-                
-                draw.polygon(hex_points, fill=fill_color)
-                if len(colors) > 2:
-                    border_color = self.hex_to_rgb(colors[(color_idx + 1) % len(colors)])
-                    draw.polygon(hex_points, outline=border_color, width=1)
-        
-        return img
-
-    def apply_material_texture(self, img: Image.Image, material: str, density: float = 0.7) -> Image.Image:
-        """Apply realistic material texture"""
-        img_array = np.array(img)
-        height, width = img_array.shape[:2]
-        
-        np.random.seed(42)  # For consistent results
-        
-        if material == 'Wool':
-            noise = np.random.normal(0, 15 * density, img_array.shape)
-            # Add fiber-like directional noise
-            for i in range(0, height, 3):
-                for j in range(0, width, 3):
-                    direction = np.random.uniform(0, 2 * np.pi)
-                    length = int(3 * density)
-                    for k in range(length):
-                        ni = int(i + k * np.cos(direction))
-                        nj = int(j + k * np.sin(direction))
-                        if 0 <= ni < height and 0 <= nj < width:
-                            noise[ni, nj] += np.random.normal(0, 5)
+                # Warp threads (vertical)
+                for x in range(0, w, warp_spacing):
+                    for y in range(h):
+                        if x < w:
+                            # Over-under weave pattern
+                            over_under = (y // weft_spacing) % 2
+                            intensity = 0.2 if over_under else -0.2
                             
-        elif material == 'Cotton':
-            noise = np.random.normal(0, 8 * density, img_array.shape)
+                            for i in range(min(warp_spacing, w - x)):
+                                fiber_texture[y, x + i] += [intensity, intensity, intensity]
+                
+                # Weft threads (horizontal)  
+                for y in range(0, h, weft_spacing):
+                    for x in range(w):
+                        if y < h:
+                            # Over-under weave pattern
+                            over_under = (x // warp_spacing) % 2
+                            intensity = 0.2 if over_under else -0.2
+                            
+                            for i in range(min(weft_spacing, h - y)):
+                                fiber_texture[y + i, x] += [intensity, intensity, intensity]
             
-        elif material == 'Jute':
-            noise = np.random.normal(0, 20 * density, img_array.shape)
-            noise += np.random.choice([-10, 0, 10], size=img_array.shape, p=[0.2, 0.6, 0.2])
+            else:
+                # Default texture for other types
+                for y in range(0, h, fiber_spacing):
+                    for x in range(0, w, fiber_spacing):
+                        height_var = np.random.normal(0, 0.1)
+                        for i in range(fiber_spacing):
+                            for j in range(fiber_spacing):
+                                if y + i < h and x + j < w:
+                                    fiber_texture[y + i, x + j] = [height_var, height_var, height_var]
             
-        elif material == 'Silk':
-            noise = np.random.normal(0, 5 * density, img_array.shape)
-            # Add sheen effect
-            x, y = np.meshgrid(np.arange(width), np.arange(height))
-            sheen = 10 * np.sin((x + y) / 20) * density
-            noise[:, :, 0] += sheen
-            noise[:, :, 1] += sheen
-            noise[:, :, 2] += sheen
-            
-        else:  # Synthetic
-            noise = np.random.normal(0, 6 * density, img_array.shape)
-        
-        textured_array = img_array.astype(np.float64) + noise
-        textured_array = np.clip(textured_array, 0, 255).astype(np.uint8)
-        
-        return Image.fromarray(textured_array)
-
-    def add_realistic_effects(self, img: Image.Image, lighting_intensity: float = 1.0) -> Image.Image:
-        """Add lighting, depth, and realistic effects"""
-        width, height = img.size
-        
-        # Create lighting gradient
-        gradient = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(gradient)
-        
-        center_x, center_y = width // 2, height // 2
-        max_radius = math.sqrt(center_x**2 + center_y**2)
-        
-        for radius in range(0, int(max_radius), 5):
-            alpha = int(30 * (radius / max_radius) * lighting_intensity)
-            color = (0, 0, 0, alpha)
-            bbox = [center_x - radius, center_y - radius, 
-                   center_x + radius, center_y + radius]
-            draw.ellipse(bbox, fill=color)
-        
-        # Apply effects
-        img = img.convert('RGBA')
-        img = Image.alpha_composite(img, gradient)
-        
-        # Enhance brightness
-        enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(1.1)
-        
-        # Add subtle blur for fiber softness
-        img = img.filter(ImageFilter.GaussianBlur(radius=0.5))
-        
-        return img.convert('RGB')
-
-def get_image_download_link(img: Image.Image, filename: str) -> str:
-    """Generate download link for image"""
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG", quality=95)
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    href = f'<a href="data:file/png;base64,{img_str}" download="{filename}">📥 Download {filename}</a>'
-    return href
-
-def main():
-    # Custom CSS for better styling
-    st.markdown("""
-    <style>
-    .main-header {
-        text-align: center;
-        padding: 1rem 0;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        font-size: 3rem;
-        font-weight: bold;
-        margin-bottom: 2rem;
-    }
-    
-    .pattern-card {
-        padding: 1rem;
-        border-radius: 10px;
-        border: 2px solid #f0f2f6;
-        margin: 0.5rem 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-    }
-    
-    .info-box {
-        padding: 1rem;
-        border-radius: 10px;
-        background: #f8f9fa;
-        border-left: 4px solid #667eea;
-        margin: 1rem 0;
-    }
-    
-    .metric-card {
-        text-align: center;
-        padding: 1rem;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        margin: 0.5rem;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Header
-    st.markdown('<h1 class="main-header">🧶 Realistic Carpet Pattern Generator</h1>', unsafe_allow_html=True)
-    st.markdown("### Create photorealistic carpet designs with authentic textures and patterns")
-
-    # Initialize generator
-    generator = StreamlitCarpetGenerator()
-
-    # Sidebar controls
-    st.sidebar.markdown("## 🎨 Design Controls")
-    
-    # Pattern selection
-    st.sidebar.markdown("### Pattern Type")
-    pattern = st.sidebar.selectbox(
-        "Choose Pattern Style",
-        options=['Diamond', 'Chevron', 'Persian', 'Moroccan', 'Tribal', 'Hexagonal'],
-        help="Select the geometric pattern for your carpet"
-    )
-    
-    # Display pattern description
-    st.sidebar.markdown(f"*{generator.pattern_descriptions[pattern]}*")
-    
-    # Material selection
-    st.sidebar.markdown("### Material Type")
-    material = st.sidebar.selectbox(
-        "Choose Carpet Material",
-        options=['Wool', 'Cotton', 'Jute', 'Silk', 'Synthetic'],
-        help="Different materials create different textures"
-    )
-    
-    # Display material info
-    st.sidebar.markdown(f"*{generator.material_info[material]}*")
-    
-    # Size and scale controls
-    st.sidebar.markdown("### Dimensions & Scale")
-    
-    col1, col2 = st.sidebar.columns(2)
-    with col1:
-        width = st.number_input("Width", min_value=200, max_value=1000, value=500, step=50)
-    with col2:
-        height = st.number_input("Height", min_value=200, max_value=1000, value=500, step=50)
-    
-    scale = st.sidebar.slider("Pattern Scale", min_value=15, max_value=80, value=35, step=5,
-                             help="Larger values create bigger pattern elements")
-    
-    # Texture controls
-    st.sidebar.markdown("### Texture Settings")
-    density = st.sidebar.slider("Fiber Density", min_value=0.1, max_value=1.0, value=0.7, step=0.1,
-                               help="Higher values create more pronounced texture")
-    
-    lighting = st.sidebar.slider("Lighting Intensity", min_value=0.1, max_value=2.0, value=1.0, step=0.1,
-                                help="Adjust the depth and lighting effects")
-    
-    # Color selection
-    st.sidebar.markdown("### Color Palette")
-    
-    use_preset = st.sidebar.checkbox("Use Color Preset", value=True)
-    
-    if use_preset:
-        preset_name = st.sidebar.selectbox(
-            "Choose Color Preset",
-            options=list(generator.color_presets.keys()),
-            index=0
-        )
-        colors = generator.color_presets[preset_name]
-        
-        # Display preset colors
-        st.sidebar.markdown("**Preview Colors:**")
-        cols = st.sidebar.columns(len(colors))
-        for i, color in enumerate(colors):
-            with cols[i]:
-                st.color_picker(f"Color {i+1}", value=color, disabled=True, key=f"preset_{i}")
-    else:
-        st.sidebar.markdown("**Custom Colors:**")
-        colors = []
-        num_colors = st.sidebar.slider("Number of Colors", min_value=2, max_value=6, value=4)
-        
-        for i in range(num_colors):
-            default_colors = ['#2c3e50', '#ecf0f1', '#34495e', '#95a5a6', '#7f8c8d', '#bdc3c7']
-            default_color = default_colors[i] if i < len(default_colors) else '#000000'
-            color = st.sidebar.color_picker(f"Color {i+1}", value=default_color, key=f"custom_{i}")
-            colors.append(color)
-    
-    # Generate button
-    st.sidebar.markdown("---")
-    generate_button = st.sidebar.button("🎨 Generate Carpet", type="primary", use_container_width=True)
-    
-    # Main content area
-    if generate_button or 'generated_carpet' not in st.session_state:
-        with st.spinner("🧶 Weaving your carpet... This may take a moment!"):
-            # Generate the carpet
-            progress_bar = st.progress(0)
-            
-            # Step 1: Create base pattern
-            progress_bar.progress(25)
-            if pattern == 'Diamond':
-                img = generator.generate_diamond_pattern(width, height, scale, colors)
-            elif pattern == 'Chevron':
-                img = generator.generate_chevron_pattern(width, height, scale, colors)
-            elif pattern == 'Persian':
-                img = generator.generate_persian_pattern(width, height, scale, colors)
-            elif pattern == 'Moroccan':
-                img = generator.generate_moroccan_pattern(width, height, scale, colors)
-            elif pattern == 'Tribal':
-                img = generator.generate_tribal_pattern(width, height, scale, colors)
-            else:  # Hexagonal
-                img = generator.generate_hexagonal_pattern(width, height, scale, colors)
-            
-            # Step 2: Apply material texture
-            progress_bar.progress(50)
-            img = generator.apply_material_texture(img, material, density)
-            
-            # Step 3: Add realistic effects
-            progress_bar.progress(75)
-            img = generator.add_realistic_effects(img, lighting)
-            
-            progress_bar.progress(100)
-            time.sleep(0.5)  # Brief pause to show completion
-            
-            # Store in session state
-            st.session_state.generated_carpet = img
-            st.session_state.carpet_config = {
-                'pattern': pattern,
-                'material': material,
-                'width': width,
-                'height': height,
-                'scale': scale,
-                'density': density,
-                'lighting': lighting,
-                'colors': colors,
-                'preset': preset_name if use_preset else 'Custom'
-            }
-            
-            progress_bar.empty()
-    
-    # Display generated carpet
-    if 'generated_carpet' in st.session_state:
-        st.markdown("## 🏺 Your Generated Carpet")
-        
-        # Display carpet image
-        col1, col2, col3 = st.columns([1, 3, 1])
-        with col2:
-            st.image(st.session_state.generated_carpet, caption="Generated Realistic Carpet Pattern", use_column_width=True)
-        
-        # Carpet specifications
-        config = st.session_state.carpet_config
-        
-        st.markdown("### 📋 Carpet Specifications")
-        
-        spec_cols = st.columns(4)
-        with spec_cols[0]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h4>Pattern</h4>
-                <p>{config['pattern']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with spec_cols[1]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h4>Material</h4>
-                <p>{config['material']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with spec_cols[2]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h4>Dimensions</h4>
-                <p>{config['width']}×{config['height']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with spec_cols[3]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h4>Color Scheme</h4>
-                <p>{config['preset']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Download section
-        st.markdown("### 💾 Download Options")
-        
-        download_cols = st.columns(3)
-        
-        with download_cols[0]:
-            filename = f"{config['pattern'].lower()}_{config['material'].lower()}_carpet.png"
-            st.markdown(get_image_download_link(st.session_state.generated_carpet, filename), 
-                       unsafe_allow_html=True)
-        
-        with download_cols[1]:
-            # High resolution version
-            if st.button("🔍 Generate High-Res (800×800)"):
-                with st.spinner("Creating high-resolution version..."):
-                    high_res_img = generator.generate_diamond_pattern(800, 800, int(scale * 1.6), colors) if config['pattern'] == 'Diamond' else st.session_state.generated_carpet
-                    high_res_img = generator.apply_material_texture(high_res_img, material, density)
-                    high_res_img = generator.add_realistic_effects(high_res_img, lighting)
+            # Add fiber material properties
+            if fiber_type == "Wool":
+                # Wool has natural crimp and matte appearance
+                crimp_noise = np.random.normal(0, 0.05, (h, w, 3))
+                fiber_texture += crimp_noise
+                
+            elif fiber_type == "Silk":
+                # Silk has high sheen
+                sheen_pattern = np.sin(np.arange(w) * 0.1) * 0.1
+                for y in range(h):
+                    fiber_texture[y, :] += sheen_pattern[:, np.newaxis]
                     
-                    st.session_state.high_res_carpet = high_res_img
-        
-        with download_cols[2]:
-            if 'high_res_carpet' in st.session_state:
-                high_res_filename = f"high_res_{filename}"
-                st.markdown(get_image_download_link(st.session_state.high_res_carpet, high_res_filename), 
-                           unsafe_allow_html=True)
-        
-        # Pattern variations
-        st.markdown("### 🎨 Quick Style Variations")
-        
-        if st.button("Generate Style Variations"):
-            st.markdown("#### Style Comparison")
+            elif fiber_type == "Nylon":
+                # Nylon has uniform appearance with slight sheen
+                uniform_sheen = np.random.normal(0.05, 0.02, (h, w, 3))
+                fiber_texture += uniform_sheen
             
-            variation_cols = st.columns(3)
-            
-            # Variation 1: Different density
-            with variation_cols[0]:
-                var1 = generator.apply_material_texture(
-                    st.session_state.generated_carpet.copy(), 
-                    material, 
-                    min(1.0, density + 0.3)
-                )
-                st.image(var1, caption="Higher Texture Density", use_column_width=True)
-            
-            # Variation 2: Different lighting
-            with variation_cols[1]:
-                var2 = generator.add_realistic_effects(
-                    st.session_state.generated_carpet.copy(), 
-                    max(0.1, lighting - 0.5)
-                )
-                st.image(var2, caption="Softer Lighting", use_column_width=True)
-            
-            # Variation 3: Different material
-            with variation_cols[2]:
-                materials = ['Wool', 'Cotton', 'Silk', 'Jute', 'Synthetic']
-                alt_material = materials[(materials.index(material) + 1) % len(materials)]
-                var3 = generator.apply_material_texture(
-                    st.session_state.generated_carpet.copy(), 
-                    alt_material, 
-                    density
-                )
-                st.image(var3, caption=f"Alternative: {alt_material}", use_column_width=True)
-    
-    # Footer with tips
-    st.markdown("---")
-    st.markdown("### 💡 Pro Tips")
-    
-    tips_cols = st.columns(2)
-    
-    with tips_cols[0]:
-        st.markdown("""
-        <div class="info-box">
-        <h4>🎨 Design Tips</h4>
-        <ul>
-        <li><strong>Scale:</strong> Larger scales work better for room-sized views</li>
-        <li><strong>Colors:</strong> High contrast creates more defined patterns</li>
-        <li><strong>Materials:</strong> Wool adds the most realistic texture</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with tips_cols[1]:
-        st.markdown("""
-        <div class="info-box">
-        <h4>🏠 Interior Design</h4>
-        <ul>
-        <li><strong>Diamond:</strong> Perfect for modern and traditional spaces</li>
-        <li><strong>Persian:</strong> Adds elegance to formal rooms</li>
-        <li><strong>Chevron:</strong> Creates dynamic energy in contemporary spaces</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
+            return fiber_texture
 
-if __name__ == "__main__":
-    main()
+        def apply_realistic_lighting(img_array, fiber_texture, lighting_angle, shadow_depth, highlight_strength, pile_height):
+            """Apply realistic lighting based on fiber structure and pile height"""
+            h, w = img_array.shape[:2]
+            
+            # Convert lighting angle to radians
+            light_angle_rad = np.radians(lighting_angle)
+            
+            # Create lighting vectors
+            light_x = np.cos(light_angle_rad)
+            light_y = np.sin(light_angle_rad)
+            
+            # Create surface normal map from fiber texture
+            fiber_gray = np.mean(fiber_texture, axis=2)
+            
+            # Calculate gradients for surface normals
+            grad_x = np.gradient(fiber_gray, axis=1)
+            grad_y = np.gradient(fiber_gray, axis=0)
+            
+            # Calculate lighting intensity for each pixel
+            lighting_map = np.zeros((h, w), dtype=np.float32)
+            
+            for y in range(h):
+                for x in range(w):
+                    # Surface normal based on fiber texture gradients
+                    normal_x = -grad_x[y, x] * pile_height
+                    normal_y = -grad_y[y, x] * pile_height
+                    normal_z = 1.0
+                    
+                    # Normalize normal vector
+                    normal_length = np.sqrt(normal_x*2 + normal_y2 + normal_z*2)
+                    if normal_length > 0:
+                        normal_x /= normal_length
+                        normal_y /= normal_length
+                        normal_z /= normal_length
+                    
+                    # Calculate dot product with light direction
+                    dot_product = normal_x * light_x + normal_y * light_y + normal_z * 0.5
+                    
+                    # Apply lighting model (Lambertian + specular)
+                    diffuse = max(0, dot_product)
+                    specular = max(0, dot_product ** 16) * highlight_strength * 0.3
+                    
+                    # Combine lighting
+                    lighting_map[y, x] = 0.4 + diffuse * 0.6 + specular
+            
+            # Apply shadow depth
+            shadow_map = 1.0 - fiber_gray * shadow_depth * 0.3
+            lighting_map *= shadow_map
+            
+            # Apply lighting to image
+            lit_image = img_array.copy().astype(np.float32)
+            for i in range(3):
+                lit_image[:, :, i] *= lighting_map
+            
+            return np.clip(lit_image, 0, 255).astype(np.uint8)
+
+        def apply_color_depth_enhancement(img_array, color_variation, fiber_irregularity):
+            """Enhance color depth with natural variations"""
+            h, w = img_array.shape[:2]
+            
+            # Convert to LAB color space for better color manipulation
+            lab = cv2.cvtColor(img_array, cv2.COLOR_RGB2LAB).astype(np.float32)
+            l, a, b = cv2.split(lab)
+            
+            # Add natural color variation
+            if color_variation > 0:
+                # Lightness variation
+                l_variation = np.random.normal(0, color_variation * 5, (h, w))
+                l += l_variation
+                
+                # Color channel variations
+                a_variation = np.random.normal(0, color_variation * 2, (h, w))
+                b_variation = np.random.normal(0, color_variation * 2, (h, w))
+                a += a_variation
+                b += b_variation
+            
+            # Add fiber irregularity
+            if fiber_irregularity > 0:
+                # Create irregular patterns
+                irregularity_pattern = np.random.normal(1.0, fiber_irregularity * 0.1, (h, w))
+                l *= irregularity_pattern
+            
+            # Clamp values to valid ranges
+            l = np.clip(l, 0, 100)
+            a = np.clip(a, -127, 127)
+            b = np.clip(b, -127, 127)
+            
+            # Convert back to RGB
+            lab_enhanced = cv2.merge([l, a, b]).astype(np.uint8)
+            rgb_enhanced = cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2RGB)
+            
+            return rgb_enhanced
+
+        def create_professional_carpet_visualization(pixel_img, target_width, target_height, 
+                                                  carpet_type, fiber_type, pile_height, 
+                                                  fiber_density, yarn_twist, color_variation,
+                                                  lighting_angle, shadow_depth, highlight_strength,
+                                                  fiber_irregularity, wear_pattern, backing_visibility):
+            """Create professional-grade carpet visualization"""
+            
+            try:
+                img_array = np.array(pixel_img)
+                
+                # Step 1: Intelligent upscaling with edge preservation
+                # Use multiple stages for better quality
+                current_img = img_array.copy()
+                
+                # Progressive upscaling
+                while current_img.shape[0] < target_height or current_img.shape[1] < target_width:
+                    new_height = min(target_height, current_img.shape[0] * 2)
+                    new_width = min(target_width, current_img.shape[1] * 2)
+                    
+                    # Use different interpolation based on current size
+                    if current_img.shape[0] * current_img.shape[1] < 10000:
+                        # Small images - use nearest neighbor to preserve sharp edges
+                        current_img = cv2.resize(current_img, (new_width, new_height), interpolation=cv2.INTER_NEAREST)
+                    else:
+                        # Larger images - use Lanczos for smooth scaling
+                        current_img = cv2.resize(current_img, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
+                
+                # Final resize to exact target size
+                upscaled = cv2.resize(current_img, (target_width, target_height), interpolation=cv2.INTER_LANCZOS4)
+                
+                # Step 2: Create fiber texture
+                fiber_texture = create_advanced_fiber_texture(
+                    carpet_type, fiber_type, (target_height, target_width), 
+                    pile_height, fiber_density, yarn_twist
+                )
+                
+                # Step 3: Apply fiber texture to base image
+                textured_image = upscaled.copy().astype(np.float32)
+                
+                # Blend fiber texture with base colors
+                for i in range(3):
+                    # Modulate color with fiber texture
+                    texture_effect = 1.0 + fiber_texture[:, :, i] * 0.4
+                    textured_image[:, :, i] *= texture_effect
+                
+                # Step 4: Apply realistic lighting
+                lit_image = apply_realistic_lighting(
+                    textured_image.astype(np.uint8), fiber_texture, 
+                    lighting_angle, shadow_depth, highlight_strength, pile_height
+                )
+                
+                # Step 5: Enhance color depth and add natural variations
+                enhanced_image = apply_color_depth_enhancement(
+                    lit_image, color_variation, fiber_irregularity
+                )
+                
+                # Step 6: Apply wear patterns if specified
+                if wear_pattern > 0:
+                    # Create wear map (typically in high-traffic areas)
+                    wear_map = np.random.beta(2, 5, (target_height, target_width)) * wear_pattern
+                    
+                    # Apply wear by slightly flattening the texture and lightening colors
+                    for i in range(3):
+                        enhanced_image[:, :, i] = enhanced_image[:, :, i] * (1 + wear_map * 0.2)
+                
+                # Step 7: Add subtle backing visibility for realistic depth
+                if backing_visibility > 0:
+                    # Create backing pattern (usually darker)
+                    backing_pattern = np.random.normal(0.8, 0.1, (target_height, target_width))
+                    backing_pattern = np.clip(backing_pattern, 0, 1)
+                    
+                    # Apply backing visibility
+                    for i in range(3):
+                        enhanced_image[:, :, i] = enhanced_image[:, :, i] * (1 - backing_visibility * (1 - backing_pattern))
+                
+                # Step 8: Final quality enhancement
+                # Apply subtle unsharp masking for detail enhancement
+                blurred = cv2.GaussianBlur(enhanced_image, (0, 0), 1.0)
+                enhanced_image = cv2.addWeighted(enhanced_image, 1.3, blurred, -0.3, 0)
+                
+                # Final clipping and conversion
+                result = np.clip(enhanced_image, 0, 255).astype(np.uint8)
+                
+                return Image.fromarray(result)
+                
+            except Exception as e:
+                st.error(f"Error during carpet visualization: {str(e)}")
+                # Fallback to basic upscaling
+                return pixel_img.resize((target_width, target_height), Image.LANCZOS)
+        
+        # Generate the realistic carpet visualization
+        if st.button("🚀 Generate Professional Carpet Visualization", type="primary"):
+            with st.spinner("🔄 Creating photorealistic carpet visualization using advanced textile simulation... This may take a moment."):
+                try:
+                    realistic_carpet = create_professional_carpet_visualization(
+                        pixel_image, target_width, target_height, carpet_type, fiber_type,
+                        pile_height, fiber_density, yarn_twist, color_variation,
+                        lighting_angle, shadow_depth, highlight_strength,
+                        fiber_irregularity, wear_pattern, backing_visibility
+                    )
+                    
+                    # Store the result in session state
+                    st.session_state.realistic_carpet = realistic_carpet
+                    st.session_state.target_width = target_width
+                    st.session_state.target_height = target_height
+                    st.session_state.carpet_specs = {
+                        'type': carpet_type,
+                        'fiber': fiber_type,
+                        'pile_height': pile_height,
+                        'density': fiber_density
+                    }
+                    
+                except Exception as e:
+                    st.error(f"Failed to create carpet visualization: {str(e)}")
+                    # Fallback
+                    st.session_state.realistic_carpet = pixel_image.resize((target_width, target_height), Image.LANCZOS)
+        
+        # Show realistic carpet if it exists in session state
+        if hasattr(st.session_state, 'realistic_carpet') and st.session_state.realistic_carpet:
+            with col2:
+                st.subheader("Professional Carpet Visualization")
+                specs = st.session_state.carpet_specs
+                caption = f"{specs['type']} - {specs['fiber']} ({specs['pile_height']}mm pile) - {st.session_state.target_width}×{st.session_state.target_height}"
+                st.image(
+                    st.session_state.realistic_carpet, 
+                    caption=caption,
+                    use_container_width=True
+                )
+            
+            # Professional download section
+            st.subheader("💾 Download Professional Visualization")
+            
+            col_d1, col_d2, col_d3 = st.columns(3)
+            
+            with col_d1:
+                # Download High-Quality PNG
+                buf_png = BytesIO()
+                st.session_state.realistic_carpet.save(buf_png, format="PNG", optimize=True)
+                st.download_button(
+                    label="📱 Download PNG (Lossless)",
+                    data=buf_png.getvalue(),
+                    file_name=f"carpet_visualization_{specs['type'].replace(' ', '_').lower()}.png",
+                    mime="image/png"
+                )
+            
+            with col_d2:
+                # Download High-Quality JPEG
+                buf_jpg = BytesIO()
+                st.session_state.realistic_carpet.save(buf_jpg, format="JPEG", quality=98, optimize=True)
+                st.download_button(
+                    label="🖼 Download JPEG (High Quality)",
+                    data=buf_jpg.getvalue(),
+                    file_name=f"carpet_visualization_{specs['type'].replace(' ', '_').lower()}.jpg",
+                    mime="image/jpeg"
+                )
+            
+            with col_d3:
+                # Download Print-Ready TIFF
+                buf_tiff = BytesIO()
+                st.session_state.realistic_carpet.save(buf_tiff, format="TIFF", compression="lzw")
+                st.download_button(
+                    label="🖨 Download TIFF (Print Ready)",
+                    data=buf_tiff.getvalue(),
+                    file_name=f"carpet_visualization_{specs['type'].replace(' ', '_').lower()}.tiff",
+                    mime="image/tiff"
+                )
+    
+    except Exception as e:
+        st.error(f"Error loading design: {str(e)}")
+
+else:
+    st.info("⬆ Please upload a carpet design pattern to start the professional visualization!")
+    
+    st.subheader("🏭 Professional Carpet Manufacturing Features:")
+    
+    col_feat1, col_feat2 = st.columns(2)
+    
+    with col_feat1:
+        st.markdown("""
+        *🧶 Textile-Specific Simulations:*
+        - *Loop Pile (Berber)*: Realistic loop structure simulation
+        - *Cut Pile*: Individual fiber end visualization  
+        - *Frieze*: Twisted yarn appearance
+        - *Flatweave*: Precise woven pattern recreation
+        - *Hand-Knotted*: Traditional knotting visualization
+        """)
+        
+    with col_feat2:
+        st.markdown("""
+        *🔬 Advanced Material Physics:*
+        - *Fiber Density Control*: Realistic pile density simulation
+        - *Yarn Twist Effects*: Natural fiber twist visualization
+        - *Pile Height Simulation*: Accurate shadow and depth
+        - *Natural Wear Patterns*: Realistic usage simulation
+        - *Professional Lighting*: Industry-standard visualization
+        """)
+    
+    st.markdown("""
+    *💼 Perfect for:*
+    - Carpet manufacturers and designers
+    - Interior design visualization
+    - Customer presentations and samples
+    - Quality control and pattern verification
+    - E-commerce product visualization
+    """)
