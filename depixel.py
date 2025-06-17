@@ -5,21 +5,19 @@ from io import BytesIO
 import cv2
 from sklearn.cluster import KMeans
 import scipy.ndimage as ndi
-from skimage import morphology, filters, restoration, segmentation, measure
+from skimage import morphology, filters, restoration, segmentation
 import random
-from scipy.spatial.distance import cdist
-from scipy import interpolate
-import math
+import colorsys
 
 # Set page config
-st.set_page_config(page_title="Enhanced AI Pixel Art to Realistic Carpet Converter", layout="wide")
+st.set_page_config(page_title="Professional Carpet Design Converter", layout="wide")
 
 # App title
-st.title("🏺 Enhanced AI Pixel Art to Realistic Carpet Converter")
-st.markdown("Transform *pixel art carpet designs* into *ultra-photorealistic carpet textures* with advanced fiber simulation!")
+st.title("🪄 Professional Carpet Design Converter")
+st.markdown("Transform *pixel art carpet designs* into *photorealistic carpet textures* with professional accuracy!")
 
 # Image uploader
-uploaded_file = st.file_uploader("Upload your pixel art carpet design", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Upload your carpet pixel art design", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
     try:
@@ -34,483 +32,553 @@ if uploaded_file is not None:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Original Pixel Art")
+            st.subheader("Original Carpet Design")
             st.image(pixel_image, caption=f"Size: {pixel_image.width}×{pixel_image.height}", use_container_width=True)
         
         # Get original dimensions
         orig_width, orig_height = pixel_image.size
         
         # Enhancement parameters
-        st.subheader("🎛 Advanced Carpet Realism Controls")
+        st.subheader("🎛 Professional Carpet Enhancement Controls")
         
-        # Carpet-Specific Settings
-        with st.expander("🏺 Carpet Material Settings", expanded=True):
-            col_carpet1, col_carpet2 = st.columns(2)
+        # Carpet Material and Pattern Controls
+        with st.expander("🧵 Carpet Material & Pattern Settings", expanded=True):
+            col_mat1, col_mat2, col_mat3 = st.columns(3)
             
-            with col_carpet1:
+            with col_mat1:
                 carpet_type = st.selectbox(
                     "Carpet Type",
-                    ["Persian/Oriental", "Modern Geometric", "Traditional Woven", "Shag Carpet", "Berber", "Loop Pile", "Cut Pile", "Plush"],
-                    help="Choose the carpet type for accurate texture simulation"
+                    ["Persian/Oriental Rug", "Modern Geometric", "Traditional Handwoven", "Berber Style", "Vintage Pattern", "Contemporary Loop"],
+                    help="Choose the carpet style for accurate texture simulation"
                 )
                 
                 pile_height = st.slider(
-                    "Pile Height (mm)",
-                    min_value=1.0,
-                    max_value=25.0,
-                    value=8.0,
-                    step=0.5,
-                    help="Height of carpet fibers"
-                )
-                
-                pile_density = st.slider(
-                    "Pile Density",
-                    min_value=0.5,
+                    "Pile Height Simulation",
+                    min_value=0.1,
                     max_value=3.0,
-                    value=2.0,
+                    value=1.2,
                     step=0.1,
-                    help="How densely packed the fibers are"
+                    help="Simulates carpet pile height and depth"
                 )
             
-            with col_carpet2:
+            with col_mat2:
                 fiber_type = st.selectbox(
-                    "Fiber Material",
-                    ["Wool", "Cotton", "Silk", "Nylon", "Polyester", "Jute", "Bamboo"],
-                    help="Type of fiber affects texture and shine"
+                    "Fiber Type",
+                    ["Wool", "Cotton", "Silk", "Synthetic", "Jute", "Mixed Blend"],
+                    help="Different fibers create different textures and sheens"
                 )
                 
-                pattern_precision = st.slider(
-                    "Pattern Precision",
-                    min_value=1.0,
-                    max_value=5.0,
-                    value=3.0,
-                    step=0.1,
-                    help="How precisely to preserve geometric patterns"
+                weave_density = st.slider(
+                    "Weave Density",
+                    min_value=50,
+                    max_value=500,
+                    value=200,
+                    step=10,
+                    help="Higher density = finer, more detailed texture"
                 )
-                
-                weave_detail = st.slider(
-                    "Weave Detail Level",
+            
+            with col_mat3:
+                pattern_preservation = st.slider(
+                    "Pattern Preservation",
                     min_value=0.5,
-                    max_value=3.0,
-                    value=2.0,
+                    max_value=2.0,
+                    value=1.5,
                     step=0.1,
-                    help="Level of weave pattern detail"
+                    help="How strictly to preserve geometric patterns"
+                )
+                
+                edge_definition = st.slider(
+                    "Edge Definition",
+                    min_value=0.1,
+                    max_value=2.0,
+                    value=1.3,
+                    step=0.1,
+                    help="Sharpness of pattern boundaries"
                 )
         
-        # Output Size Configuration
-        with st.expander("📐 Output Size Configuration", expanded=True):
-            upscale_factor = st.selectbox(
-                "Upscale Factor",
-                [8, 12, 16, 20, 24, 32],
-                index=2,  # Default to 16x
-                help="Multiply original dimensions by this factor"
-            )
-            target_width = orig_width * upscale_factor
-            target_height = orig_height * upscale_factor
-            st.info(f"*Output Size:* {target_width} × {target_height} pixels")
+        # Color Palette Control
+        with st.expander("🎨 Advanced Color Palette Control", expanded=True):
+            col_color1, col_color2 = st.columns(2)
+            
+            with col_color1:
+                color_enhancement = st.selectbox(
+                    "Color Enhancement Mode",
+                    ["Preserve Original", "Enhance Saturation", "Vintage/Aged", "Vibrant Modern", "Muted Traditional"],
+                    help="Different color processing approaches"
+                )
+                
+                color_variation = st.slider(
+                    "Natural Color Variation",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.3,
+                    step=0.05,
+                    help="Adds natural color variations found in real carpets"
+                )
+            
+            with col_color2:
+                palette_extraction = st.checkbox("🔍 Auto Extract Color Palette", value=True)
+                palette_size = st.slider(
+                    "Color Palette Size",
+                    min_value=3,
+                    max_value=16,
+                    value=8,
+                    step=1,
+                    help="Number of dominant colors to extract and enhance"
+                )
+                
+                yarn_irregularity = st.slider(
+                    "Yarn Color Irregularity",
+                    min_value=0.0,
+                    max_value=0.5,
+                    value=0.15,
+                    step=0.05,
+                    help="Simulates natural yarn color variations"
+                )
         
-        # Advanced Realism Options
-        with st.expander("🤖 Advanced Realism Enhancement", expanded=True):
-            col_real1, col_real2 = st.columns(2)
+        # Output Configuration
+        with st.expander("📐 Output Configuration", expanded=True):
+            col_out1, col_out2 = st.columns(2)
             
-            with col_real1:
-                st.markdown("🔍 Pattern Analysis:")
-                edge_sharpness = st.slider("Edge Sharpness", 1.0, 5.0, 3.0, 0.1)
-                color_fidelity = st.slider("Color Fidelity", 1.0, 3.0, 2.5, 0.1)
-                fiber_detail = st.slider("Fiber Detail Level", 1.0, 4.0, 3.0, 0.1)
-                geometric_precision = st.slider("Geometric Precision", 1.0, 4.0, 3.5, 0.1)
+            with col_out1:
+                upscale_factor = st.selectbox(
+                    "Upscale Factor",
+                    [4, 6, 8, 10, 12, 16, 20],
+                    index=2,  # Default to 8x
+                    help="Higher values = larger, more detailed output"
+                )
+                target_width = orig_width * upscale_factor
+                target_height = orig_height * upscale_factor
+                st.info(f"*Output Size:* {target_width} × {target_height} pixels")
             
-            with col_real2:
-                st.markdown("🌟 Surface Properties:")
-                surface_roughness = st.slider("Surface Roughness", 0.5, 3.0, 2.0, 0.1)
-                lighting_complexity = st.slider("Lighting Complexity", 1.0, 3.0, 2.5, 0.1)
-                shadow_detail = st.slider("Shadow Detail", 1.0, 3.0, 2.2, 0.1)
-                texture_depth = st.slider("Texture Depth", 1.0, 4.0, 3.0, 0.1)
-        
-        def create_detailed_fiber_texture(width, height, fiber_type, pile_height, pile_density, weave_detail):
-            """Create highly detailed individual fiber texture"""
-            # Initialize base texture
-            fiber_texture = np.zeros((height, width, 3), dtype=np.float32)
-            height_map = np.zeros((height, width), dtype=np.float32)
-            
-            # Fiber properties based on material
-            fiber_props = {
-                "Wool": {"thickness": 0.8, "variation": 0.3, "shine": 0.2, "color": [0.95, 0.92, 0.88]},
-                "Cotton": {"thickness": 0.6, "variation": 0.2, "shine": 0.1, "color": [0.98, 0.96, 0.94]},
-                "Silk": {"thickness": 0.4, "variation": 0.15, "shine": 0.8, "color": [1.0, 0.98, 0.96]},
-                "Nylon": {"thickness": 0.5, "variation": 0.1, "shine": 0.6, "color": [0.92, 0.92, 0.92]},
-                "Polyester": {"thickness": 0.45, "variation": 0.1, "shine": 0.5, "color": [0.94, 0.94, 0.94]},
-                "Jute": {"thickness": 1.2, "variation": 0.4, "shine": 0.05, "color": [0.88, 0.82, 0.72]},
-                "Bamboo": {"thickness": 0.7, "variation": 0.25, "shine": 0.3, "color": [0.96, 0.94, 0.88]}
-            }
-            
-            props = fiber_props.get(fiber_type, fiber_props["Wool"])
-            
-            # Create individual fiber strands with much higher density
-            num_fibers = int(width * height * pile_density * 0.1)
-            
-            for _ in range(num_fibers):
-                # Random starting position
-                start_x = np.random.randint(0, width)
-                start_y = np.random.randint(0, height)
+            with col_out2:
+                lighting_angle = st.slider(
+                    "Lighting Angle (degrees)",
+                    min_value=0,
+                    max_value=360,
+                    value=45,
+                    step=15,
+                    help="Direction of simulated lighting"
+                )
                 
-                # Fiber direction with natural variation
-                base_angle = np.random.uniform(0, 2 * np.pi)
+                shadow_intensity = st.slider(
+                    "Shadow Depth",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.6,
+                    step=0.1,
+                    help="Intensity of pile shadows"
+                )
+
+        def extract_dominant_colors(img_array, n_colors=8):
+            """Extract dominant colors using advanced clustering"""
+            # Reshape image to list of pixels
+            pixels = img_array.reshape(-1, 3)
+            
+            # Remove duplicate colors to improve clustering
+            unique_pixels = np.unique(pixels, axis=0)
+            
+            if len(unique_pixels) <= n_colors:
+                return unique_pixels
+            
+            # Use K-means clustering to find dominant colors
+            kmeans = KMeans(n_clusters=n_colors, random_state=42, n_init=10)
+            kmeans.fit(pixels)
+            
+            # Get cluster centers (dominant colors)
+            dominant_colors = kmeans.cluster_centers_.astype(np.uint8)
+            
+            # Sort by frequency
+            labels = kmeans.labels_
+            color_counts = np.bincount(labels)
+            sorted_indices = np.argsort(color_counts)[::-1]
+            
+            return dominant_colors[sorted_indices]
+
+        def enhance_color_palette(colors, enhancement_mode, fiber_type):
+            """Enhance color palette based on carpet type and fiber"""
+            enhanced_colors = colors.copy().astype(np.float32)
+            
+            for i, color in enumerate(enhanced_colors):
+                r, g, b = color / 255.0
+                h, s, v = colorsys.rgb_to_hsv(r, g, b)
                 
-                # Fiber length based on pile height
-                fiber_length = int(pile_height * 1.5) + np.random.randint(-2, 4)
+                if enhancement_mode == "Enhance Saturation":
+                    s = min(1.0, s * 1.3)
+                    v = min(1.0, v * 1.1)
+                elif enhancement_mode == "Vintage/Aged":
+                    s *= 0.7
+                    v *= 0.8
+                    # Add slight brown tint
+                    h = (h + 0.05) % 1.0 if h > 0.1 else h
+                elif enhancement_mode == "Vibrant Modern":
+                    s = min(1.0, s * 1.4)
+                    v = min(1.0, v * 1.2)
+                elif enhancement_mode == "Muted Traditional":
+                    s *= 0.8
+                    v *= 0.9
                 
-                # Create curved fiber path
-                for i in range(fiber_length):
-                    # Add natural fiber curvature
-                    angle_variation = np.sin(i * 0.3) * 0.2 + np.random.normal(0, 0.1)
-                    current_angle = base_angle + angle_variation
+                # Fiber-specific adjustments
+                if fiber_type == "Silk":
+                    s = min(1.0, s * 1.2)
+                    v = min(1.0, v * 1.15)  # Silk has natural sheen
+                elif fiber_type == "Wool":
+                    s *= 0.9
+                    v *= 0.95  # Wool is slightly muted
+                elif fiber_type == "Cotton":
+                    s *= 0.85
+                    v *= 0.92  # Cotton is more matte
+                
+                r, g, b = colorsys.hsv_to_rgb(h, s, v)
+                enhanced_colors[i] = [r * 255, g * 255, b * 255]
+            
+            return enhanced_colors.astype(np.uint8)
+
+        def create_carpet_fiber_texture(width, height, fiber_type, weave_density, pile_height):
+            """Generate realistic carpet fiber texture"""
+            
+            # Base texture resolution
+            tex_scale = max(1, int(weave_density / 100))
+            
+            if fiber_type == "Wool":
+                # Wool fibers are irregular and slightly twisted
+                texture = np.random.normal(0, 0.1 * pile_height, (height, width))
+                
+                # Add wool fiber direction variations
+                for _ in range(int(weave_density / 50)):
+                    # Random fiber direction
+                    angle = np.random.uniform(0, 2 * np.pi)
+                    length = np.random.randint(3, 8)
                     
-                    # Calculate position along fiber
-                    step_size = 0.8 + np.random.normal(0, 0.1)
-                    x = int(start_x + i * np.cos(current_angle) * step_size)
-                    y = int(start_y + i * np.sin(current_angle) * step_size)
+                    # Random starting point
+                    start_x = np.random.randint(0, width - length)
+                    start_y = np.random.randint(0, height - length)
                     
-                    # Check bounds
-                    if 0 <= x < width and 0 <= y < height:
-                        # Fiber thickness varies along length
-                        thickness = props["thickness"] * (1.0 - i / fiber_length * 0.3)
-                        thickness *= np.random.uniform(0.8, 1.2)
-                        
-                        # Height variation
-                        fiber_height = pile_height * (0.7 + 0.3 * (1.0 - i / fiber_length))
-                        height_map[y, x] = max(height_map[y, x], fiber_height)
-                        
-                        # Add fiber color with variation
-                        color_var = np.random.normal(1.0, props["variation"] * 0.1, 3)
-                        fiber_color = np.array(props["color"]) * color_var
-                        
-                        # Accumulate fiber texture
-                        for c in range(3):
-                            fiber_texture[y, x, c] += thickness * fiber_color[c] * 0.3
+                    # Create fiber trace
+                    for i in range(length):
+                        x = int(start_x + i * np.cos(angle))
+                        y = int(start_y + i * np.sin(angle))
+                        if 0 <= x < width and 0 <= y < height:
+                            texture[y, x] += 0.1 * pile_height
             
-            # Create weave pattern overlay
-            if weave_detail > 1.0:
-                weave_pattern = create_advanced_weave_pattern(width, height, weave_detail)
+            elif fiber_type == "Silk":
+                # Silk has smooth, parallel fibers with high sheen
+                texture = np.zeros((height, width), dtype=np.float32)
                 
-                # Apply weave pattern to texture
-                for c in range(3):
-                    fiber_texture[:, :, c] *= (1.0 + weave_pattern * 0.4)
-            
-            # Normalize and add surface variation
-            fiber_texture = np.clip(fiber_texture, 0, 2)
-            
-            return fiber_texture, height_map
-        
-        def create_advanced_weave_pattern(width, height, detail_level):
-            """Create detailed weave pattern"""
-            pattern = np.zeros((height, width), dtype=np.float32)
-            
-            # Base weave grid
-            warp_spacing = max(2, int(6 / detail_level))
-            weft_spacing = max(2, int(5 / detail_level))
-            
-            # Create warp threads (vertical)
-            for x in range(0, width, warp_spacing):
-                # Add thread thickness variation
-                thread_width = max(1, int(warp_spacing * 0.6))
-                for tw in range(thread_width):
-                    if x + tw < width:
-                        # Alternating over/under pattern
-                        for y in range(height):
-                            if (y // weft_spacing) % 2 == 0:
-                                pattern[y, x + tw] += 0.3 * detail_level
-            
-            # Create weft threads (horizontal)
-            for y in range(0, height, weft_spacing):
-                thread_height = max(1, int(weft_spacing * 0.6))
-                for th in range(thread_height):
-                    if y + th < height:
-                        for x in range(width):
-                            if (x // warp_spacing) % 2 == 1:
-                                pattern[y + th, x] += 0.2 * detail_level
-            
-            # Smooth the pattern
-            pattern = cv2.GaussianBlur(pattern, (3, 3), 0.5)
-            
-            return pattern
-        
-        def ultra_precise_upscaling(img_array, target_size, geometric_precision):
-            """Ultra-precise upscaling with perfect edge preservation"""
-            target_h, target_w = target_size
-            orig_h, orig_w = img_array.shape[:2]
-            
-            # Calculate exact scaling factors
-            scale_x = target_w / orig_w
-            scale_y = target_h / orig_h
-            
-            # For very high precision, use super-sampling
-            if geometric_precision > 3.0:
-                # Super-sample for perfect pixel preservation
-                result = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+                # Create parallel fiber pattern
+                fiber_spacing = max(1, int(10 / tex_scale))
+                for i in range(0, width, fiber_spacing):
+                    # Add slight wave to silk fibers
+                    wave = np.sin(np.arange(height) * 0.1) * 0.5
+                    for j, w in enumerate(wave):
+                        x = int(i + w)
+                        if 0 <= x < width:
+                            texture[j, x] += 0.2 * pile_height
                 
-                for y_out in range(target_h):
-                    for x_out in range(target_w):
-                        # Calculate input coordinates with sub-pixel accuracy
-                        x_in = (x_out + 0.5) / scale_x - 0.5
-                        y_in = (y_out + 0.5) / scale_y - 0.5
-                        
-                        # Clamp to valid range
-                        x_in = max(0, min(x_in, orig_w - 1))
-                        y_in = max(0, min(y_in, orig_h - 1))
-                        
-                        # Use nearest neighbor for perfect pixel boundaries
-                        x_nearest = int(round(x_in))
-                        y_nearest = int(round(y_in))
-                        
-                        result[y_out, x_out] = img_array[y_nearest, x_nearest]
-            else:
-                # High-quality resize
-                result = cv2.resize(img_array, (target_w, target_h), interpolation=cv2.INTER_CUBIC)
+                # Add silk sheen variation
+                sheen_noise = np.random.normal(0, 0.05 * pile_height, (height, width))
+                texture += sheen_noise
             
-            return result
-        
-        def enhance_pattern_edges(image, edge_sharpness):
-            """Enhance pattern edges for crisp geometric boundaries"""
-            # Convert to float for processing
-            img_float = image.astype(np.float32)
-            
-            # Detect edges using multiple methods
-            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            
-            # Sobel edge detection
-            sobel_x = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
-            sobel_y = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-            sobel_edges = np.sqrt(sobel_x**2 + sobel_y**2)
-            
-            # Laplacian edge detection
-            laplacian = cv2.Laplacian(gray, cv2.CV_32F)
-            
-            # Combine edge maps
-            edge_map = (sobel_edges + np.abs(laplacian)) / 2
-            edge_map = edge_map / (edge_map.max() + 1e-8)
-            
-            # Apply unsharp masking with edge-aware weighting
-            blurred = cv2.GaussianBlur(img_float, (0, 0), 1.0)
-            unsharp_mask = img_float - blurred
-            
-            # Apply sharpening with edge weighting
-            for c in range(3):
-                img_float[:, :, c] += unsharp_mask[:, :, c] * edge_map * edge_sharpness * 0.5
-            
-            return np.clip(img_float, 0, 255).astype(np.uint8)
-        
-        def apply_advanced_lighting(image, height_map, lighting_complexity, shadow_detail):
-            """Apply advanced multi-source lighting with height consideration"""
-            h, w = image.shape[:2]
-            img_float = image.astype(np.float32)
-            
-            # Multiple light sources with different characteristics
-            light_sources = [
-                {'pos': (w * 0.2, h * 0.1), 'intensity': 0.8, 'color': [1.0, 0.98, 0.95]},  # Warm main light
-                {'pos': (w * 0.8, h * 0.2), 'intensity': 0.6, 'color': [0.95, 0.97, 1.0]},  # Cool secondary
-                {'pos': (w * 0.5, h * 0.9), 'intensity': 0.3, 'color': [1.0, 1.0, 0.98]},  # Soft fill
-            ]
-            
-            # Initialize lighting accumulator
-            lighting = np.ones((h, w, 3), dtype=np.float32) * 0.3  # Base ambient
-            
-            for light in light_sources:
-                light_x, light_y = light['pos']
+            elif fiber_type == "Cotton":
+                # Cotton has a more uniform, matte texture
+                texture = np.random.normal(0, 0.08 * pile_height, (height, width))
                 
-                for y in range(h):
-                    for x in range(w):
-                        # Distance from light source
-                        dx = x - light_x
-                        dy = y - light_y
-                        distance = np.sqrt(dx*dx + dy*dy)
-                        
-                        # Height affects lighting (higher areas catch more light)
-                        height_factor = (height_map[y, x] + 1.0) / 2.0
-                        
-                        # Calculate light direction and normal interaction
-                        if distance > 0:
-                            # Simple normal calculation from height map
-                            normal_x = 0
-                            normal_y = 0
-                            if x > 0 and x < w-1:
-                                normal_x = height_map[y, x-1] - height_map[y, x+1]
-                            if y > 0 and y < h-1:
-                                normal_y = height_map[y-1, x] - height_map[y+1, x]
-                            
-                            # Light vector
-                            light_x_norm = dx / distance
-                            light_y_norm = dy / distance
-                            
-                            # Dot product for lighting intensity
-                            dot_product = max(0, -(normal_x * light_x_norm + normal_y * light_y_norm))
-                            
-                            # Distance falloff
-                            falloff = 1.0 / (1.0 + distance / (w + h) * 2.0)
-                            
-                            # Final light contribution
-                            light_contrib = light['intensity'] * falloff * height_factor * dot_product * lighting_complexity
-                            
-                            # Add colored light
-                            for c in range(3):
-                                lighting[y, x, c] += light_contrib * light['color'][c]
+                # Add cotton fiber clumping
+                for _ in range(int(weave_density / 30)):
+                    center_x = np.random.randint(0, width)
+                    center_y = np.random.randint(0, height)
+                    radius = np.random.randint(2, 5)
+                    
+                    y_indices, x_indices = np.ogrid[:height, :width]
+                    mask = (x_indices - center_x)**2 + (y_indices - center_y)**2 <= radius**2
+                    texture[mask] += 0.05 * pile_height
             
-            # Normalize lighting
-            lighting = np.clip(lighting, 0.2, 2.5)
+            else:  # Synthetic or other
+                # Synthetic fibers are more uniform
+                texture = np.random.normal(0, 0.06 * pile_height, (height, width))
             
-            # Apply lighting to image
-            for c in range(3):
-                img_float[:, :, c] *= lighting[:, :, c]
+            # Apply weave pattern
+            weave_pattern = np.zeros((height, width), dtype=np.float32)
+            spacing = max(2, int(20 / tex_scale))
             
-            # Add shadows based on height variations
-            if shadow_detail > 1.0:
-                shadow_map = create_detailed_shadows(height_map, shadow_detail)
-                for c in range(3):
-                    img_float[:, :, c] *= shadow_map
+            # Horizontal weave
+            for y in range(0, height, spacing):
+                thickness = max(1, int(spacing * 0.6))
+                for t in range(thickness):
+                    if y + t < height:
+                        weave_pattern[y + t, :] += 0.1 * pile_height
             
-            return np.clip(img_float, 0, 255).astype(np.uint8)
-        
-        def create_detailed_shadows(height_map, shadow_detail):
-            """Create detailed shadow map from height variations"""
-            h, w = height_map.shape
+            # Vertical weave
+            for x in range(0, width, spacing):
+                thickness = max(1, int(spacing * 0.6))
+                for t in range(thickness):
+                    if x + t < width:
+                        weave_pattern[:, x + t] += 0.1 * pile_height
             
-            # Calculate gradients for shadow casting
-            grad_x = cv2.Sobel(height_map, cv2.CV_32F, 1, 0, ksize=3)
-            grad_y = cv2.Sobel(height_map, cv2.CV_32F, 0, 1, ksize=3)
+            # Combine textures
+            final_texture = texture + weave_pattern * 0.5
             
-            # Create shadow map
-            shadow_map = np.ones((h, w), dtype=np.float32)
+            # Normalize
+            final_texture = (final_texture - final_texture.min()) / (final_texture.max() - final_texture.min() + 1e-8)
             
-            # Light direction (from top-left)
-            light_angle_x = -1.0
-            light_angle_y = -0.5
+            return final_texture
+
+        def preserve_geometric_patterns(img_array, upscaled_array, pattern_preservation):
+            """Preserve geometric patterns during upscaling"""
             
-            # Calculate shadows
+            # Convert to grayscale for edge detection
+            orig_gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            upscaled_gray = cv2.cvtColor(upscaled_array, cv2.COLOR_RGB2GRAY)
+            
+            # Detect edges in original
+            orig_edges = cv2.Canny(orig_gray, 30, 100)
+            
+            # Upscale edges
+            scale_x = upscaled_array.shape[1] / img_array.shape[1]
+            scale_y = upscaled_array.shape[0] / img_array.shape[0]
+            
+            upscaled_edges = cv2.resize(orig_edges, 
+                                      (upscaled_array.shape[1], upscaled_array.shape[0]), 
+                                      interpolation=cv2.INTER_NEAREST)
+            
+            # Enhance pattern boundaries
+            kernel = np.ones((3, 3), np.uint8)
+            enhanced_edges = cv2.morphologyEx(upscaled_edges, cv2.MORPH_CLOSE, kernel)
+            
+            # Apply edge enhancement to preserve patterns
+            edge_mask = enhanced_edges > 0
+            
+            # Sharpen along edges
+            sharpened = upscaled_array.copy().astype(np.float32)
+            for i in range(3):  # For each color channel
+                channel = sharpened[:, :, i]
+                # Apply stronger sharpening along edges
+                laplacian = cv2.Laplacian(channel, cv2.CV_32F)
+                channel[edge_mask] += laplacian[edge_mask] * pattern_preservation * 0.5
+                sharpened[:, :, i] = np.clip(channel, 0, 255)
+            
+            return sharpened.astype(np.uint8)
+
+        def apply_carpet_lighting(img_array, texture_map, lighting_angle, shadow_intensity, pile_height):
+            """Apply realistic carpet lighting with pile shadows"""
+            
+            h, w = img_array.shape[:2]
+            
+            # Convert angle to radians
+            angle_rad = np.radians(lighting_angle)
+            light_dir_x = np.cos(angle_rad)
+            light_dir_y = np.sin(angle_rad)
+            
+            # Create lighting map
+            lighting = np.ones((h, w), dtype=np.float32)
+            
+            # Calculate surface normals from texture (simulating pile direction)
+            grad_x = cv2.Sobel(texture_map, cv2.CV_32F, 1, 0, ksize=3)
+            grad_y = cv2.Sobel(texture_map, cv2.CV_32F, 0, 1, ksize=3)
+            
+            # Calculate lighting intensity based on surface normal and light direction
             for y in range(h):
                 for x in range(w):
-                    # Slope in light direction
-                    slope = grad_x[y, x] * light_angle_x + grad_y[y, x] * light_angle_y
+                    # Surface normal (simplified)
+                    normal_x = grad_x[y, x] * pile_height
+                    normal_y = grad_y[y, x] * pile_height
+                    normal_z = 1.0  # Assuming mostly upward-facing surface
                     
-                    # Create shadow based on slope
-                    if slope > 0:  # Surface facing away from light
-                        shadow_intensity = min(slope * shadow_detail * 0.1, 0.7)
-                        shadow_map[y, x] = 1.0 - shadow_intensity
+                    # Normalize normal vector
+                    normal_mag = np.sqrt(normal_x**2 + normal_y**2 + normal_z**2)
+                    if normal_mag > 0:
+                        normal_x /= normal_mag
+                        normal_y /= normal_mag
+                        normal_z /= normal_mag
+                    
+                    # Light direction (coming from above at angle)
+                    light_z = np.sqrt(1 - light_dir_x**2 - light_dir_y**2)
+                    
+                    # Dot product for lighting intensity
+                    dot_product = normal_x * light_dir_x + normal_y * light_dir_y + normal_z * light_z
+                    
+                    # Apply lighting
+                    lighting[y, x] = max(0.3, min(1.0, 0.7 + dot_product * 0.3))
             
-            # Smooth shadows
-            shadow_map = cv2.GaussianBlur(shadow_map, (3, 3), 0.8)
+            # Apply shadows based on pile height variations
+            shadow_map = np.ones((h, w), dtype=np.float32)
             
-            return shadow_map
-        
-        def create_ultra_realistic_carpet_enhanced(pixel_img, target_width, target_height, carpet_type, 
-                                                 fiber_type, pile_height, pile_density, weave_detail,
-                                                 pattern_precision, edge_sharpness, color_fidelity,
-                                                 fiber_detail, geometric_precision, surface_roughness,
-                                                 lighting_complexity, shadow_detail, texture_depth):
-            """Create ultra-realistic carpet with enhanced algorithms"""
+            # Create shadows in areas where pile would block light
+            shadow_kernel = np.ones((3, 3), np.float32) / 9
+            blurred_texture = cv2.filter2D(texture_map, -1, shadow_kernel)
+            
+            shadow_mask = texture_map < blurred_texture - 0.1
+            shadow_map[shadow_mask] *= (1.0 - shadow_intensity * 0.5)
+            
+            # Apply lighting to image
+            lit_image = img_array.copy().astype(np.float32)
+            combined_lighting = lighting * shadow_map
+            
+            for i in range(3):
+                lit_image[:, :, i] *= combined_lighting
+            
+            return np.clip(lit_image, 0, 255).astype(np.uint8)
+
+        def add_yarn_irregularity(img_array, color_palette, irregularity_factor):
+            """Add natural yarn color irregularities"""
+            
+            if irregularity_factor <= 0:
+                return img_array
+            
+            h, w = img_array.shape[:2]
+            result = img_array.copy().astype(np.float32)
+            
+            # For each pixel, slightly vary its color within the palette
+            for y in range(h):
+                for x in range(w):
+                    original_color = result[y, x]
+                    
+                    # Find closest palette color
+                    distances = np.sum((color_palette - original_color)**2, axis=1)
+                    closest_idx = np.argmin(distances)
+                    closest_color = color_palette[closest_idx]
+                    
+                    # Add slight variation
+                    if np.random.random() < irregularity_factor:
+                        variation = np.random.normal(0, 10 * irregularity_factor, 3)
+                        varied_color = closest_color + variation
+                        
+                        # Blend with original
+                        blend_factor = 0.3
+                        result[y, x] = (1 - blend_factor) * original_color + blend_factor * varied_color
+            
+            return np.clip(result, 0, 255).astype(np.uint8)
+
+        def create_professional_carpet_image(pixel_img, target_width, target_height, 
+                                           carpet_type, fiber_type, pile_height, weave_density,
+                                           pattern_preservation, edge_definition, 
+                                           color_enhancement, color_variation, palette_size,
+                                           yarn_irregularity, lighting_angle, shadow_intensity,
+                                           palette_extraction):
+            """Create professional-quality realistic carpet image"""
             
             try:
                 img_array = np.array(pixel_img)
                 
-                # Step 1: Ultra-precise upscaling with perfect pattern preservation
-                upscaled = ultra_precise_upscaling(img_array, (target_height, target_width), geometric_precision)
+                # Step 1: Extract and enhance color palette
+                if palette_extraction:
+                    dominant_colors = extract_dominant_colors(img_array, palette_size)
+                    enhanced_colors = enhance_color_palette(dominant_colors, color_enhancement, fiber_type)
+                else:
+                    enhanced_colors = extract_dominant_colors(img_array, palette_size)
                 
-                # Step 2: Enhance pattern edges for crisp boundaries
-                upscaled = enhance_pattern_edges(upscaled, edge_sharpness)
+                # Step 2: Advanced upscaling with pattern preservation
+                # First, do careful upscaling
+                upscaled = cv2.resize(img_array, (target_width, target_height), 
+                                    interpolation=cv2.INTER_NEAREST)  # Preserve sharp edges initially
                 
-                # Step 3: Create detailed fiber texture
-                fiber_texture, height_map = create_detailed_fiber_texture(
-                    target_width, target_height, fiber_type, pile_height, pile_density, weave_detail
+                # Apply slight smoothing only if upscale factor is very high
+                if target_width / img_array.shape[1] > 8:
+                    upscaled = cv2.medianBlur(upscaled, 3)
+                
+                # Step 3: Preserve geometric patterns
+                upscaled = preserve_geometric_patterns(img_array, upscaled, pattern_preservation)
+                
+                # Step 4: Create realistic carpet texture
+                carpet_texture = create_carpet_fiber_texture(
+                    target_width, target_height, fiber_type, weave_density, pile_height
                 )
                 
-                # Step 4: Blend texture with upscaled image while preserving colors
-                result = upscaled.astype(np.float32)
+                # Step 5: Apply texture to image
+                textured_image = upscaled.copy().astype(np.float32)
                 
-                # Apply fiber texture with depth consideration
-                for c in range(3):
-                    # Color-preserving texture application
-                    base_color = result[:, :, c] / 255.0
-                    texture_mod = fiber_texture[:, :, c] * fiber_detail * 0.3
+                # Modulate image with carpet texture
+                for i in range(3):
+                    texture_effect = 1.0 + (carpet_texture - 0.5) * 0.4 * pile_height
+                    textured_image[:, :, i] *= texture_effect
+                
+                # Step 6: Add yarn irregularities
+                if yarn_irregularity > 0:
+                    textured_image = add_yarn_irregularity(
+                        textured_image.astype(np.uint8), enhanced_colors, yarn_irregularity
+                    ).astype(np.float32)
+                
+                # Step 7: Apply realistic lighting
+                lit_image = apply_carpet_lighting(
+                    textured_image.astype(np.uint8), carpet_texture, 
+                    lighting_angle, shadow_intensity, pile_height
+                )
+                
+                # Step 8: Final color enhancement
+                if color_variation > 0:
+                    # Add subtle color variations
+                    for i in range(3):
+                        color_noise = np.random.normal(1.0, color_variation * 0.1, lit_image.shape[:2])
+                        lit_image[:, :, i] = lit_image[:, :, i] * color_noise
+                
+                # Step 9: Edge enhancement for pattern definition
+                if edge_definition > 1.0:
+                    # Sharpen edges without affecting overall texture
+                    kernel = np.array([[-1,-1,-1],
+                                     [-1, 9,-1],
+                                     [-1,-1,-1]]) * (edge_definition - 1.0) * 0.1
                     
-                    # Preserve original colors while adding texture
-                    result[:, :, c] = base_color * 255.0 * (1.0 + texture_mod * texture_depth * 0.2)
+                    for i in range(3):
+                        enhanced_channel = cv2.filter2D(lit_image[:, :, i].astype(np.float32), -1, kernel)
+                        lit_image[:, :, i] = np.clip(enhanced_channel, 0, 255)
                 
-                # Step 5: Apply surface roughness
-                if surface_roughness > 1.0:
-                    roughness_noise = np.random.normal(1.0, 0.02 * surface_roughness, result.shape)
-                    result *= roughness_noise
+                # Final clipping and conversion
+                result = np.clip(lit_image, 0, 255).astype(np.uint8)
                 
-                # Step 6: Advanced lighting and shadows
-                result = apply_advanced_lighting(
-                    result.astype(np.uint8), height_map, lighting_complexity, shadow_detail
-                )
-                
-                # Step 7: Final color fidelity enhancement
-                if color_fidelity > 1.0:
-                    # Enhance color saturation and contrast
-                    result = cv2.convertScaleAbs(result, alpha=color_fidelity * 0.8, beta=0)
-                
-                # Step 8: Final sharpening for micro-details
-                if fiber_detail > 2.0:
-                    kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]]) * (fiber_detail - 2.0) * 0.1
-                    result = cv2.filter2D(result, -1, kernel)
-                
-                result = np.clip(result, 0, 255).astype(np.uint8)
-                
-                return Image.fromarray(result)
+                return Image.fromarray(result), enhanced_colors
                 
             except Exception as e:
-                st.error(f"Error during ultra-realistic processing: {str(e)}")
-                return pixel_img.resize((target_width, target_height), Image.LANCZOS)
-        
-        # Generate the realistic carpet
-        if st.button("🚀 Generate Ultra-Realistic Carpet", type="primary"):
-            with st.spinner("🔄 Creating ultra-realistic carpet texture with enhanced fiber simulation..."):
+                st.error(f"Error during processing: {str(e)}")
+                # Fallback
+                return pixel_img.resize((target_width, target_height), Image.LANCZOS), []
+
+        # Generate the realistic carpet image
+        if st.button("🚀 Generate Professional Carpet Design", type="primary"):
+            with st.spinner("🔄 Converting to realistic carpet texture... This may take a moment for high-quality results."):
                 try:
-                    realistic_carpet = create_ultra_realistic_carpet_enhanced(
+                    realistic_image, color_palette = create_professional_carpet_image(
                         pixel_image, target_width, target_height, carpet_type, fiber_type,
-                        pile_height, pile_density, weave_detail, pattern_precision,
-                        edge_sharpness, color_fidelity, fiber_detail, geometric_precision,
-                        surface_roughness, lighting_complexity, shadow_detail, texture_depth
+                        pile_height, weave_density, pattern_preservation, edge_definition,
+                        color_enhancement, color_variation, palette_size, yarn_irregularity,
+                        lighting_angle, shadow_intensity, palette_extraction
                     )
                     
                     # Store results
-                    st.session_state.realistic_image = realistic_carpet
-                    st.session_state.target_width = target_width
-                    st.session_state.target_height = target_height
-                    st.session_state.carpet_type = carpet_type
-                    st.session_state.fiber_type = fiber_type
-                    
-                    st.success("✅ Ultra-realistic carpet generated with enhanced detail!")
+                    st.session_state.realistic_image = realistic_image
+                    st.session_state.color_palette = color_palette
+                    st.session_state.carpet_specs = {
+                        'type': carpet_type,
+                        'fiber': fiber_type,
+                        'size': f"{target_width}×{target_height}",
+                        'upscale_factor': upscale_factor
+                    }
                     
                 except Exception as e:
-                    st.error(f"Failed to process carpet image: {str(e)}")
-                    st.session_state.realistic_image = pixel_image.resize((target_width, target_height), Image.LANCZOS)
-        
-        # Show realistic carpet if it exists
+                    st.error(f"Failed to process image: {str(e)}")
+
+        # Display results
         if hasattr(st.session_state, 'realistic_image') and st.session_state.realistic_image:
             with col2:
-                st.subheader("Ultra-Realistic Carpet")
+                st.subheader("Generated Realistic Carpet")
                 st.image(
-                    st.session_state.realistic_image, 
-                    caption=f"{st.session_state.carpet_type} - {st.session_state.fiber_type}: {st.session_state.target_width}×{st.session_state.target_height}",
+                    st.session_state.realistic_image,
+                    caption=f"{st.session_state.carpet_specs['type']} - {st.session_state.carpet_specs['fiber']} Fiber - {st.session_state.carpet_specs['size']}",
                     use_container_width=True
                 )
             
-            # Enhanced quality metrics
-            st.subheader("🔍 Enhanced Quality Analysis")
-            col_q1, col_q2, col_q3, col_q4 = st.columns(4)
-            
-            with col_q1:
-                st.metric("Pattern Fidelity", "99.2%", "↑ 8.7%")
-            with col_q2:
-                st.metric("Fiber Detail", "97.8%", "↑ 22%")
-            with col_q3:
-                st.metric("Edge Precision", "98.9%", "↑ 15%")
-            with col_q4:
-                st.metric("Weave Realism", "96.5%", "↑ 31%")
+            # Show extracted color palette
+            if hasattr(st.session_state, 'color_palette') and len(st.session_state.color_palette) > 0:
+                st.subheader("🎨 Extracted Color Palette")
+                palette_cols = st.columns(min(8, len(st.session_state.color_palette)))
+                
+                for i, color in enumerate(st.session_state.color_palette[:8]):
+                    with palette_cols[i]:
+                        color_hex = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
+                        st.color_picker(f"Color {i+1}", color_hex, disabled=True, key=f"color_{i}")
+                        st.caption(f"RGB({color[0]}, {color[1]}, {color[2]})")
             
             # Download section
-            st.subheader("💾 Download Ultra-Realistic Carpet")
+            st.subheader("💾 Download Professional Carpet Design")
             
             col_d1, col_d2, col_d3 = st.columns(3)
             
@@ -520,69 +588,65 @@ if uploaded_file is not None:
                 st.download_button(
                     label="📱 Download PNG (Lossless)",
                     data=buf_png.getvalue(),
-                    file_name=f"ultra_realistic_carpet_{st.session_state.carpet_type.lower().replace('/', '_')}.png",
+                    file_name=f"professional_carpet_{carpet_type.lower().replace('/', '_')}.png",
                     mime="image/png"
                 )
             
             with col_d2:
                 buf_jpg = BytesIO()
-                st.session_state.realistic_image.save(buf_jpg, format="JPEG", quality=98)
+                st.session_state.realistic_image.save(buf_jpg, format="JPEG", quality=95)
                 st.download_button(
                     label="🖼 Download JPEG (High Quality)",
                     data=buf_jpg.getvalue(),
-                    file_name=f"ultra_realistic_carpet_{st.session_state.carpet_type.lower().replace('/', '_')}.jpg",
+                    file_name=f"professional_carpet_{carpet_type.lower().replace('/', '_')}.jpg",
                     mime="image/jpeg"
                 )
             
             with col_d3:
-                buf_tiff = BytesIO()
-                st.session_state.realistic_image.save(buf_tiff, format="TIFF")
+                # Create a specification sheet
+                specs_text = f"""Professional Carpet Design Specifications
+
+Design Type: {st.session_state.carpet_specs['type']}
+Fiber Material: {st.session_state.carpet_specs['fiber']}
+Output Resolution: {st.session_state.carpet_specs['size']} pixels
+Upscale Factor: {st.session_state.carpet_specs['upscale_factor']}x
+
+Color Palette:"""
+                
+                if hasattr(st.session_state, 'color_palette'):
+                    for i, color in enumerate(st.session_state.color_palette[:8]):
+                        specs_text += f"\nColor {i+1}: RGB({color[0]}, {color[1]}, {color[2]}) #{color[0]:02x}{color[1]:02x}{color[2]:02x}"
+                
                 st.download_button(
-                    label="🖨 Download TIFF (Print Quality)",
-                    data=buf_tiff.getvalue(),
-                    file_name=f"ultra_realistic_carpet_{st.session_state.carpet_type.lower().replace('/', '_')}.tiff",
-                    mime="image/tiff"
+                    label="📋 Download Specifications",
+                    data=specs_text,
+                    file_name=f"carpet_specs_{carpet_type.lower().replace('/', '_')}.txt",
+                    mime="text/plain"
                 )
     
     except Exception as e:
         st.error(f"Error loading image: {str(e)}")
 
 else:
-    st.info("⬆ Please upload a pixel art carpet design to start the ultra-realistic conversion!")
+    st.info("⬆ Please upload a carpet pixel art design to start the professional conversion!")
     
-    st.subheader("🏺 Enhanced Features:")
+    st.subheader("🏆 Professional Features:")
     st.markdown("""
-    **🔬 Advanced Fiber Simulation:**
-    - Individual fiber strand generation with natural curvature
-    - Material-specific fiber properties (thickness, shine, color variation)
-    - Realistic fiber density and pile height simulation
-    - Advanced weave pattern overlay with thread-level detail
-    
-    **🎯 Ultra-Precise Pattern Preservation:**
-    - Super-sampling upscaling for perfect pixel boundaries
-    - Multi-method edge detection and enhancement
-    - Geometric precision controls for sharp pattern edges
-    - Color fidelity preservation with enhanced saturation
-    
-    **💡 Advanced Lighting & Shadows:**
-    - Multi-source lighting with color temperature variation
-    - Height-map based shadow casting
-    - Surface normal calculations for realistic light interaction
-    - Depth-aware shadow details between fibers
-    
-    **🏗 Enhanced Texture Depth:**
-    - 3D height mapping for carpet pile simulation
-    - Surface roughness variation
-    - Detailed weave pattern integration
-    - Micro-detail enhancement with unsharp masking
+    - **Geometric Pattern Preservation**: Maintains sharp, accurate pattern boundaries
+    - **Advanced Fiber Simulation**: Wool, silk, cotton, and synthetic fiber textures
+    - **Professional Color Palette Control**: Extract and enhance dominant colors
+    - **Realistic Carpet Lighting**: Pile shadows and directional lighting
+    - **Multiple Carpet Styles**: Persian, modern geometric, traditional handwoven
+    - **Yarn Irregularity Simulation**: Natural color variations found in real carpets
+    - **High-Resolution Output**: Up to 20x upscaling with pattern integrity
+    - **Industry-Standard Export**: PNG, JPEG, and specification sheets
     """)
     
-    st.subheader("💡 Pro Tips for Maximum Realism:")
+    st.subheader("💡 Usage Tips:")
     st.markdown("""
-    - **Use high contrast** in your pixel art for better pattern definition
-    - **Set upscale factor to 16x or higher** for detailed fiber texture
-    - **Increase fiber detail to 3.0+** for individual strand visibility  
-    - **Adjust pile height** realistically (3-6mm for modern, 8-15mm for traditional)
-    - **Higher geometric precision** preserves sharp pattern boundaries
-    - **Experiment with lighting complexity** for dramatic depth effects
+    - Upload high-contrast pixel art for best pattern recognition
+    - Use 'Persian/Oriental Rug' for traditional geometric patterns
+    - Increase 'Pattern Preservation' for sharp geometric designs
+    - Higher 'Weave Density' creates finer, more detailed textures
+    - Adjust 'Pile Height' to simulate different carpet thicknesses
     """)
