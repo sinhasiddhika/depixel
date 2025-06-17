@@ -3,11 +3,7 @@ import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter, ImageDraw
 import io
 import base64
-from sklearn.cluster import KMeans
 from scipy import ndimage
-import plotly.express as px
-import plotly.graph_objects as go
-import pandas as pd
 
 # Set page config
 st.set_page_config(
@@ -37,6 +33,14 @@ st.markdown("""
         border-radius: 10px;
         margin: 1rem 0;
     }
+    .color-swatch {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        margin: 5px;
+        border: 2px solid #333;
+        border-radius: 5px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -45,19 +49,22 @@ class PixelToRealisticConverter:
         pass
         
     def extract_color_palette(self, image, n_colors=8):
-        """Extract dominant colors from the image"""
+        """Extract dominant colors from the image using simple clustering"""
         # Convert PIL to numpy array
         img_array = np.array(image)
         
         # Reshape image to be a list of pixels
         pixels = img_array.reshape(-1, 3)
         
-        # Use KMeans to find dominant colors
-        kmeans = KMeans(n_clusters=n_colors, random_state=42, n_init=10)
-        kmeans.fit(pixels)
+        # Simple color clustering using numpy
+        unique_colors = np.unique(pixels.reshape(-1, pixels.shape[-1]), axis=0)
         
-        colors = kmeans.cluster_centers_.astype(int)
-        return colors
+        if len(unique_colors) <= n_colors:
+            return unique_colors
+        
+        # If too many colors, sample evenly
+        indices = np.linspace(0, len(unique_colors)-1, n_colors, dtype=int)
+        return unique_colors[indices]
     
     def upscale_image(self, image, scale_factor=4):
         """Upscale image using bicubic interpolation"""
@@ -71,9 +78,6 @@ class PixelToRealisticConverter:
     
     def apply_texture_enhancement(self, image):
         """Apply texture enhancement using PIL filters"""
-        # Convert to numpy array for processing
-        img_array = np.array(image)
-        
         # Apply simple noise reduction
         enhanced = image.filter(ImageFilter.MedianFilter(3))
         
@@ -214,6 +218,21 @@ def create_download_link(image, filename="converted_image.png"):
     href = f'<a href="data:image/png;base64,{img_str}" download="{filename}">Download High Quality Image</a>'
     return href
 
+def create_color_palette_html(colors):
+    """Create HTML for color palette display"""
+    html = '<div style="display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0;">'
+    for i, color in enumerate(colors):
+        rgb_str = f"rgb({color[0]}, {color[1]}, {color[2]})"
+        html += f'''
+        <div style="text-align: center;">
+            <div style="width: 50px; height: 50px; background-color: {rgb_str}; 
+                 border: 2px solid #333; border-radius: 8px; margin-bottom: 5px;"></div>
+            <small>RGB({color[0]}, {color[1]}, {color[2]})</small>
+        </div>
+        '''
+    html += '</div>'
+    return html
+
 def main():
     st.markdown('<h1 class="main-header">🎨 Pixel Art to Realistic Image Converter</h1>', unsafe_allow_html=True)
     
@@ -279,30 +298,8 @@ def main():
             st.markdown("### 🎨 Original Color Palette")
             original_palette = converter.extract_color_palette(original_image, 8)
             
-            # Create a visual palette using Plotly
-            palette_colors = [f'rgb({color[0]}, {color[1]}, {color[2]})' for color in original_palette]
-            
-            fig = go.Figure()
-            
-            # Create color swatches
-            for i, color in enumerate(palette_colors):
-                fig.add_trace(go.Scatter(
-                    x=[i], y=[0],
-                    mode='markers',
-                    marker=dict(size=50, color=color),
-                    name=f'Color {i+1}',
-                    hovertemplate=f'RGB: {original_palette[i]}<extra></extra>'
-                ))
-            
-            fig.update_layout(
-                title="Extracted Color Palette",
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-0.5, 0.5]),
-                height=150,
-                showlegend=False
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
+            # Display palette using HTML
+            st.markdown(create_color_palette_html(original_palette), unsafe_allow_html=True)
         
         # Conversion button
         if st.button("🚀 Convert to Realistic Image", type="primary"):
@@ -376,6 +373,11 @@ def main():
                             file_name="realistic_high_quality.png",
                             mime="image/png"
                         )
+        
+        # Show custom palette preview if enabled
+        if use_custom_palette and custom_colors:
+            st.markdown("### 🎨 Your Custom Palette")
+            st.markdown(create_color_palette_html(custom_colors), unsafe_allow_html=True)
         
         # Comparison section
         st.markdown("---")
