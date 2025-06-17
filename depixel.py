@@ -1,17 +1,13 @@
 import streamlit as st
 import numpy as np
-import cv2
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter, ImageDraw
 import io
 import base64
 from sklearn.cluster import KMeans
-import matplotlib.pyplot as plt
 from scipy import ndimage
-import torch
-import torchvision.transforms as transforms
-from torchvision.models import vgg19
-import torch.nn as nn
-import torch.nn.functional as F
+import plotly.express as px
+import plotly.graph_objects as go
+import pandas as pd
 
 # Set page config
 st.set_page_config(
@@ -46,7 +42,7 @@ st.markdown("""
 
 class PixelToRealisticConverter:
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        pass
         
     def extract_color_palette(self, image, n_colors=8):
         """Extract dominant colors from the image"""
@@ -74,16 +70,21 @@ class PixelToRealisticConverter:
         return image.filter(ImageFilter.EDGE_ENHANCE_MORE)
     
     def apply_texture_enhancement(self, image):
-        """Apply texture enhancement using various filters"""
+        """Apply texture enhancement using PIL filters"""
         # Convert to numpy array for processing
         img_array = np.array(image)
         
-        # Apply bilateral filter for noise reduction while preserving edges
-        bilateral = cv2.bilateralFilter(img_array, 9, 75, 75)
+        # Apply simple noise reduction
+        enhanced = image.filter(ImageFilter.MedianFilter(3))
         
-        # Apply unsharp masking for detail enhancement
-        gaussian = cv2.GaussianBlur(bilateral, (0, 0), 2.0)
-        unsharp_mask = cv2.addWeighted(bilateral, 1.5, gaussian, -0.5, 0)
+        # Apply unsharp masking using PIL
+        blurred = enhanced.filter(ImageFilter.GaussianBlur(radius=2))
+        enhanced_array = np.array(enhanced).astype(np.float32)
+        blurred_array = np.array(blurred).astype(np.float32)
+        
+        # Unsharp mask calculation
+        unsharp_mask = enhanced_array + 0.5 * (enhanced_array - blurred_array)
+        unsharp_mask = np.clip(unsharp_mask, 0, 255)
         
         return Image.fromarray(unsharp_mask.astype(np.uint8))
     
@@ -278,15 +279,30 @@ def main():
             st.markdown("### 🎨 Original Color Palette")
             original_palette = converter.extract_color_palette(original_image, 8)
             
-            # Display palette
-            palette_fig, palette_ax = plt.subplots(1, 1, figsize=(8, 1))
-            palette_ax.imshow([original_palette], aspect='auto')
-            palette_ax.set_xticks(range(len(original_palette)))
-            palette_ax.set_xticklabels([f'RGB{tuple(color)}' for color in original_palette], rotation=45, ha='right')
-            palette_ax.set_yticks([])
-            palette_ax.set_title('Extracted Color Palette')
-            st.pyplot(palette_fig)
-            plt.close()
+            # Create a visual palette using Plotly
+            palette_colors = [f'rgb({color[0]}, {color[1]}, {color[2]})' for color in original_palette]
+            
+            fig = go.Figure()
+            
+            # Create color swatches
+            for i, color in enumerate(palette_colors):
+                fig.add_trace(go.Scatter(
+                    x=[i], y=[0],
+                    mode='markers',
+                    marker=dict(size=50, color=color),
+                    name=f'Color {i+1}',
+                    hovertemplate=f'RGB: {original_palette[i]}<extra></extra>'
+                ))
+            
+            fig.update_layout(
+                title="Extracted Color Palette",
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-0.5, 0.5]),
+                height=150,
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
         
         # Conversion button
         if st.button("🚀 Convert to Realistic Image", type="primary"):
